@@ -1,0 +1,443 @@
+---
+title: "Analysis of THP1 and Jurkat mixed population"
+author: "Qiyu Gong"
+date: "2024/06/15"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(data.table)
+library(introdataviz)
+library(RColorBrewer)
+library(Seurat)
+library(loomR)
+library(ggpubr)
+library(gridExtra)
+library(VariantAnnotation)
+library(rhdf5)
+library(scales) 
+library(vcfR)
+library(pinfsc50)
+library(ggside)
+library(tidyquant)
+base_path = '/Users/gongqiyu/Documents/STAGseq'
+setwd(base_path)
+knitr::opts_knit$set(root.dir = base_path)
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+
+#### Set folder path for datasets and figures
+```{r, warning=FALSE, message=FALSE}
+set.seed(42)
+file_path = 'figure1/data/'
+data_save = 'figure1/results/'
+figs_save = 'figure1/figures/'
+```
+
+
+## 1. Load HyPR-seq dataset
+```{r}
+# load matrxi which filtered UMIs < 100
+if (TRUE) {
+  df <- read.table(paste0(file_path, 'count_matrix_f100.txt'), 
+                   header = TRUE, sep = '\t', row.names = 1)
+  unique_prefixes <- unique(sub("_.+$", "", names(df)))
+  new_df <- data.frame(df[1])
+  new_df[,1] <- NULL
+  for (prefix in unique_prefixes) {
+    selected_columns <- dplyr::select(df, starts_with(prefix))
+    new_column <- rowSums(selected_columns)
+    new_df[[prefix]] <- new_column
+  }
+  hypr <- as.data.frame(t(new_df))
+}
+```
+
+
+### HyPR-seq QC (filter cells based on rank plot)
+```{r}
+df <- data.frame(Cell = colnames(hypr), TotalReads = colSums(hypr)) %>% 
+  arrange(desc(TotalReads))
+threshold <- quantile(df$TotalReads, 0.70)
+df$Rank <- seq_along(df$TotalReads)
+df$Highlight <- ifelse(df$TotalReads <= threshold, "Yes", "No")
+critical_cell <- df[which.min(abs(df$TotalReads - threshold)), , drop = FALSE]
+
+p <- ggplot(df, aes(x = Rank, y = TotalReads)) +
+  geom_smooth(method = "loess", se = FALSE, color = "#3182bd",
+              linewidth = 0.8, span = 0.05, n = 100) +
+  geom_point(data = critical_cell, aes(x = Rank, y = TotalReads),
+             color = "#e34a33", size = 2) +
+  geom_text(data = critical_cell, aes(x = Rank, y = TotalReads,
+             label = paste("Rank:", Rank, "\nTotal Reads:", TotalReads)),
+             vjust = 1, hjust = 1.2, size = 4) +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(x = "Ranked Barcodes", y = "Total Reads (log)",
+       title = "Hypr - rank plot") +
+  theme_bw()
+print(p)
+```
+```{r}
+# remove low quality cells in Hypr
+deleted_cells <- df[df$Highlight == 'Yes', ]$Cell
+hypr <- hypr[, setdiff(colnames(hypr), deleted_cells)]
+cat(paste0('Number of cells in Hypr dataset: ', length(colnames(hypr))))
+```
+
+
+## 2. Load Tapestri datasets
+```{r}
+# AD (Allelic Depth)
+# RO (Reference Allele Observations)
+# GT (Genotype)
+if (TRUE) {
+  loom_file <- paste0(file_path, 'THP1_Jurkat.cells.loom')
+  h5ls(loom_file)
+  ngt <- as.matrix(HDF5Array::HDF5Array(loom_file, "matrix")) 
+  ad <- as.matrix(HDF5Array::HDF5Array(loom_file, "layers/AD"))
+  dp <- as.matrix(HDF5Array::HDF5Array(loom_file, "layers/DP"))
+  ro <- as.matrix(HDF5Array::HDF5Array(loom_file, "layers/RO"))
+  barcodes <- as.matrix(HDF5Array::HDF5Array(loom_file, "col_attrs/barcode"))
+  chrom <- h5read(loom_file, "row_attrs/CHROM")
+  pos <- h5read(loom_file, "row_attrs/POS")
+  ref <- h5read(loom_file, "row_attrs/REF")
+  alt <- h5read(loom_file, "row_attrs/ALT")
+  variant_ids <- paste0("chr", chrom, ":", pos, "_", ref, "/", alt)
+  rownames(ad) <- barcodes
+  rownames(dp) <- barcodes
+  rownames(ro) <- barcodes
+  rownames(ngt) <- barcodes
+  colnames(ad) <- variant_ids
+  colnames(dp) <- variant_ids
+  colnames(ro) <- variant_ids
+  colnames(ngt) <- variant_ids
+  subset_cells <- intersect(barcodes, colnames(hypr))
+}
+```
+
+
+### Tapestri QC (filter cells based on rank plot)
+```{r}
+df <- data.frame(Cell = rownames(dp), TotalReads = rowSums(dp)) %>%
+  arrange(desc(TotalReads))
+threshold <- quantile(df$TotalReads, 0.25)
+df$Rank <- seq_along(df$TotalReads)
+df$Highlight <- ifelse(df$TotalReads <= threshold, "Yes", "No")
+critical_cell <- df[which.min(abs(df$TotalReads - threshold)), , drop = FALSE]
+
+p <- ggplot(df, aes(x = Rank, y = TotalReads)) +
+  geom_smooth(method = "loess", se = FALSE, color = "#3182bd",
+              linewidth = 0.8, span = 0.75, n = 100) +
+  geom_point(data = critical_cell, aes(x = Rank, y = TotalReads),
+             color = "#e34a33", size = 2) +
+  geom_text(data = critical_cell, aes(x = Rank, y = TotalReads,
+             label = paste("Rank:", Rank, "\nTotal Reads:", TotalReads)),
+             vjust = 1, hjust = 1.2, size = 4) +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(x = "Ranked Barcodes", y = "Total Reads (log)",
+       title = "Tapestri - rank plot") +
+  theme_bw()
+print(p)
+```
+
+```{r}
+# remove low quality cells in both Hypr and Tapestri
+deleted_cells <- df[df$Highlight == 'Yes', ]$Cell
+barcodes <- setdiff(barcodes, deleted_cells)
+subset_cells <- intersect(barcodes, colnames(hypr))
+saveRDS(subset_cells, file = paste0(data_save, 'subset_cells.rds'))
+cat(paste0('Number of intersected cells: ', length(subset_cells)))
+```
+
+
+## 3. Definition of cell types based on VAF (Variant Allele Frequency)
+```{r}
+# remove low quality SNPs suggested by Tapestri report
+var_table <- read.csv(paste0(file_path, 'THP1_jurkat_SNP.csv'))
+remove_snp <- c(
+  "chr22:42129130_C/G",
+  "chrX:153940125_C/T",
+  "chr12:6363586_G/A",
+  "chr12:6363587_C/A",
+  "chr9:136371953_G/A",
+  "chr9:136372044_C/T"
+)
+var_table <- var_table[! var_table$Variant %in% remove_snp, ]
+thp1_homo_snp <- var_table[var_table$sample == 'THP1' & var_table$type == 'Homo', ]$Variant
+thp1_het_snp <- var_table[var_table$sample == 'THP1' & var_table$type == 'Hets', ]$Variant
+jurkat_homo_snp <- var_table[var_table$sample == 'Jurkat' & var_table$type == 'Homo', ]$Variant
+jurkat_het_snp <- var_table[var_table$sample == 'Jurkat' & var_table$type == 'Hets', ]$Variant
+
+# set group colors
+color_palette <- c(
+  "THP1" = "#1f78b4", "Jurkat" = "#e31a1c", "Mix" = "#2ca25f", "FP"="#a65628", "Unknown"="#756bb1"
+)
+
+# compute average VAF
+cut_vaf = 0.075
+if (TRUE) {
+  thp1_use <- c(thp1_homo_snp, thp1_het_snp)
+  jurkat_use <- c(jurkat_homo_snp, jurkat_het_snp)
+  subset_cells <- readRDS(paste0(data_save, 'subset_cells.rds'))
+  var_list = c(jurkat_use, thp1_use)
+  dp_filter <- dp[subset_cells, intersect(variant_ids, var_list)]
+  ngt_filter <- ngt[subset_cells, intersect(variant_ids, var_list)]
+  ad_filter <- ad[subset_cells, intersect(variant_ids, var_list)]
+  dt_use = ifelse(dp_filter == 0, 0, ad_filter/dp_filter)
+  df_thp1 <- dt_use[subset_cells, intersect(variant_ids, thp1_use)]
+  df_jurkat <- dt_use[subset_cells, intersect(variant_ids, jurkat_use)]
+  
+  data_combined <- data.frame('THP1'=rowMeans(df_thp1), 'Jurkat'=rowMeans(df_jurkat))
+  save_index = "_VAF"
+  data_combined$Barcodes <- rownames(data_combined)
+  data_combined$type <- ifelse(
+    data_combined$Jurkat > cut_vaf & data_combined$THP1 <= cut_vaf, "Jurkat",
+    ifelse(
+      data_combined$Jurkat <= cut_vaf & data_combined$THP1 > cut_vaf, "THP1",
+      ifelse(
+        data_combined$Jurkat > cut_vaf & data_combined$THP1 > cut_vaf, "Mix", "Unknown"
+      )
+    )
+  )
+  
+  p0 <- ggplot(data_combined, aes(x = Jurkat, y = THP1, color = type)) +
+    geom_point(size=.5) +
+    scale_color_manual(values = color_palette) +
+    theme_bw() +
+    theme(
+      panel.grid = element_blank(), 
+      plot.title=element_text(hjust=0.5),
+      legend.title = element_text(size = 18),
+      legend.text = element_text(size = 12)
+    ) + 
+    guides(
+      color = guide_legend(title = "Type", title.position = "top", 
+                           title.theme = element_text(size = 12), 
+                           override.aes = list(size = 4))
+    ) + labs(x = "Jurkat (VAF)", y = "THP1 (VAF)")
+  
+  tmp <- as.data.frame(table(data_combined$type))
+  text_label <- paste0(
+    "THP1 ", tmp[tmp$Var1 == "THP1", ]$Freq,
+    "\nMix ", tmp[tmp$Var1 == "Mix", ]$Freq, 
+    "\nJurkat ", tmp[tmp$Var1 == "Jurkat", ]$Freq
+  )
+  
+  saveRDS(data_combined, paste0(data_save, 'THP1_Jurkat', save_index, '_All_Allels.rds'))
+  p <- p0 + ggtitle('All allels') + 
+    annotate("text", label = text_label, size = 4, hjust = 1, x = 0.9, y = 0.9)
+
+  thp1_cells = data_combined[data_combined$type == "THP1", ]$Barcodes
+  jurkat_cells = data_combined[data_combined$type == "Jurkat", ]$Barcodes
+}
+```
+
+
+### Scatter plot with density after filtering cells
+```{r}
+if (TRUE) {
+  save_index = "_VAF"
+  data_combined <- readRDS(paste0(data_save, 'THP1_Jurkat', save_index, '_All_Allels.rds'))
+  p0 <- ggplot(data_combined, aes(x = Jurkat, y = THP1, color = type)) +
+    geom_point(size=.5) +
+    scale_color_manual(values = color_palette) +
+    geom_density_2d(color = "black", n=100, linewidth = 0.3, linejoin = 'bevel') + 
+    scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, by = 0.2)) +
+    scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, by = 0.2)) +
+    theme_bw() +
+    theme(
+      panel.grid = element_blank(), 
+      plot.title=element_text(hjust=0.5),
+      legend.title = element_text(size = 18),
+      legend.text = element_text(size = 12)
+    ) + 
+    guides(color = guide_legend(title = "Type", title.position = "top", 
+                                title.theme = element_text(size = 12), 
+                                override.aes = list(size = 4))) + 
+    labs(x = "Jurkat (VAF)", y = "THP1 (VAF)")
+  
+  tmp <- as.data.frame(table(data_combined$type))
+  text_label <- paste0(
+    "THP1 ", tmp[tmp$Var1 == "THP1", ]$Freq,
+    "\nJurkat ", tmp[tmp$Var1 == "Jurkat", ]$Freq,
+    "\nMix ", tmp[tmp$Var1 == "Mix", ]$Freq
+  )
+  
+  figs_save_name = paste0('THP1_Jurkat', save_index, '_All_Allels_final.pdf')
+  p <- p0 + ggtitle('VAF of all unique allels') +
+    annotate("text", label = text_label, size = 4, hjust = 1, x = 0.9, y = 0.9)
+  print(p)
+
+  pdf(paste0(figs_save, figs_save_name), width = 5.5, height = 4.2)
+  print(p)
+  dev.off()
+}
+```
+
+
+### Dotplots for selected SNPs
+```{r}
+if(TRUE) {
+  select_vars <- c(
+    "chrX:153940125_C/T",
+    "chrX:48911587_G/A",
+    "chr9:8486019_G/A",
+    "chr19:41012393_T/C",
+    "chr7:156329747_C/T",
+    "chr7:128933951_C/T",
+    "chr21:33415005_A/G",
+    "chr13:32336705_A/G",
+    "chr9:98251824_C/A",
+    "chr1:1054870_C/T"
+  )
+  homo_calls <- readRDS(paste0(data_save, 'THP1_Jurkat_VAF_All_Allels.rds'))
+  seu <- readRDS(paste0(data_save, 'Hypr_seurat_label_based_all.rds'))
+  homo_calls <- homo_calls[homo_calls$Barcodes %in% colnames(seu), ]
+  type_order = rev(c("THP1", "Jurkat", "Mix"))
+  var_table <- read.csv(paste0(file_path, 'THP1_jurkat_SNP.csv'))
+  subset_cells <- readRDS(paste0(data_save, 'subset_cells.rds'))
+  
+  plot_type = 'density'
+  sample_type = FALSE
+  
+  var_list = select_vars
+  if(TRUE) {
+    thp1_sites = select_vars[6:10]
+    jurkat_sites = select_vars[1:5]
+    dp_filter <- dp[subset_cells, intersect(variant_ids, var_list)]
+    ngt_filter <- ngt[subset_cells, intersect(variant_ids, var_list)]
+    ad_filter <- ad[subset_cells, intersect(variant_ids, var_list)]
+    dt_use = as.data.frame(ifelse(dp_filter == 0, 0, ad_filter/dp_filter))
+    dt_use <- dt_use[colnames(seu), ]
+    dt_use$cell_label <- seu$type
+    data_long <- dt_use %>% pivot_longer(cols = -cell_label, names_to = "Variant", values_to = "VAF")
+    data_long$size = ifelse(data_long$cell_label %in% c("Jurkat", "THP1"), 0.5, 1)
+    data_long$color = ifelse(data_long$cell_label %in% c("Jurkat", "THP1"), 0.5, 1)
+    if (isTRUE(sample_type)) {
+      data_long <- lapply(type_order, function(t) {
+        dt = data_long[data_long$cell_label == t, ]
+        data_sampled <- dt[sample(nrow(dt), size = nrow(dt) / 2 ), ]
+        return(data_sampled)
+      }) %>% do.call('rbind', .)
+    }
+    data_long$Variant <- factor(data_long$Variant, levels = var_list)
+    data_long$cell_label <- factor(data_long$cell_label, levels = type_order)
+    data_long = data_long[data_long$Variant %in% var_list, ]
+    data_long = data_long[data_long$cell_label %in% type_order, ]
+
+    if (plot_type == 'scater') {
+      data_long$sort_order <- with(data_long, ifelse(
+        cell_label == 'Mix' & VAF > 0.06 & VAF < 0.94, 1,
+        ifelse(cell_label == 'Jurkat' & VAF > 0.06 & VAF < 0.94, 2,
+               ifelse(cell_label == 'THP1' & VAF > 0.06 & VAF < 0.94, 3,
+                      ifelse(cell_label == 'Jurkat' & VAF < 0.06 & Variant %in% thp1_sites, 4,
+                             ifelse(cell_label == 'Jurkat' & VAF > 0.94 & Variant %in% jurkat_sites, 5, 6))))))
+      data_long <- data_long[order(data_long$sort_order, decreasing = TRUE), ]
+      p <- ggplot(data_long, aes(x = Variant, y = VAF, color = cell_label)) +
+        geom_jitter(aes(size = size, alpha = color), 
+                    width = 0.3, height = 0.03, shape = 16) +  
+        scale_color_manual(values = color_palette) +
+        scale_size(range = c(1, 1.6), guide = "none") + 
+        scale_alpha(range = c(0.5, 0.9), guide = "none") + 
+        labs(x = "", y = "VAFs [%]", color = "Type") +
+        theme_bw() +
+        coord_flip() +
+        theme(
+          panel.grid = element_blank(), 
+          plot.title = element_text(hjust = 0.5),
+          legend.title = element_text(size = 18),
+          legend.text = element_text(size = 12),
+          legend.position = "right") 
+      print(p)
+      
+      pdf(paste0(figs_save, 'Select_variants_split.pdf'), width = 7, height = 6)
+      print(p)
+      dev.off()
+    } else if (plot_type == 'density') {
+      inverse_log1p <- function(x) expm1(x)
+      formatted_breaks <- function(x) format(x, nsmall = 2) 
+      p <- ggplot(data_long, aes(x = log1p(VAF), y = after_stat(log1p(density)), fill = cell_label)) +
+        geom_density(alpha = 0.75, adjust = 3.5) +
+        scale_fill_manual(values = color_palette) +
+        labs(x = "VAF[%]", y = "Log-transformed Density", fill = "Type") +  
+        theme_bw() +
+        theme(
+          panel.grid = element_blank(),
+          panel.grid.major.y = element_blank(),
+          panel.grid.minor.y = element_blank(),
+          plot.title = element_text(hjust = 0.5),
+          legend.title = element_text(size = 12),
+          legend.text = element_text(size = 12),
+          legend.position = "right",
+          axis.text.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          strip.background = element_rect(fill = "white", colour = "black"), 
+          strip.text = element_text(size = 8.6)) +
+        facet_wrap(~ Variant, scales = 'free_y', ncol = 1, strip.position = "left") +
+        scale_x_continuous(labels = function(x) formatted_breaks(inverse_log1p(x)), 
+                           breaks = log1p(seq(0, 1, by = 0.25)))
+      print(p)
+      
+      pdf(paste0(figs_save, 'Select_variants_split.pdf'), width = 8, height = 15)
+      print(p)
+      dev.off()
+    }
+  }
+}
+```
+
+
+## 4. Seurat processing of Hypr dataset
+```{r, echo=FALSE}
+all_calls <- readRDS(paste0(data_save, 'THP1_Jurkat_VAF_All_Allels.rds'))
+subset_cells <- readRDS(paste0(data_save, 'subset_cells.rds'))
+seu <- CreateSeuratObject(as.matrix(hypr)[, subset_cells])
+seu$type <- all_calls[rownames(all_calls) %in% colnames(seu), ]$type
+seu <- seu %>% NormalizeData() 
+seu <- FindVariableFeatures(seu, nfeatures = nrow(seu))
+VariableFeatures(seu) <- rownames(seu)
+seu <- ScaleData(seu)
+seu <- RunPCA(seu, npcs = 30, verbose = FALSE)
+seu <- RunUMAP(seu, dims = 1:10, n.neighbors = 10, min.dist = 0.05, verbose = FALSE) 
+seu <- FindNeighbors(seu, dims = 1:10)
+seu <- FindClusters(seu, resolution = 0.05)
+p <- DimPlot(seu, label = T, group.by = 'type')
+saveRDS(seu, file = paste0(data_save, 'Hypr_seurat_label_based_all.rds'))
+```
+
+
+### UMAP plots
+```{r}
+seu <- readRDS(paste0(data_save, 'Hypr_seurat_label_based_all.rds'))
+seu$type <- factor(seu$type, levels = c("THP1", "Jurkat", "Mix"))
+p <- DimPlot(seu, label = T, cols = color_palette, group.by = 'type', 
+             pt.size = 0.2, order = c("THP1", "Jurkat", "Mix")) +
+  theme_minimal() +
+  labs(title = 'Distribution of THP1 and Jurkat', x = 'UMAP1', y = 'UMAP2') +
+  theme(
+    panel.grid = element_blank(), 
+    plot.title=element_text(hjust=0.5),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    legend.title = element_text(size = 18),
+    legend.text = element_text(size = 12),
+    axis.line.x = element_line(color = "black"), 
+    axis.line.y = element_line(color = "black")
+  ) ; print(p)
+pdf(paste0(figs_save, 'UMAP_Hypr_THP1_Jurkat.pdf'), width = 6, height = 4)
+print(p)
+dev.off()
+```
+
+
+
+
+
+
+

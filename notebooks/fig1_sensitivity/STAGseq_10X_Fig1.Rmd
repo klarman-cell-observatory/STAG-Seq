@@ -1,0 +1,632 @@
+---
+title: "Comparation of STAGseq and 10X"
+author: "Qiyu Gong"
+date: "2024/06/16"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(data.table)
+library(introdataviz)
+library(RColorBrewer)
+library(Seurat)
+library(ggpubr)
+library(gridExtra)
+library(GenomicFeatures)
+library(tximport)
+library(AnnotationDbi)
+library(org.Hs.eg.db)
+base_path = '/Users/gongqiyu/Documents/STAGseq'
+setwd(base_path)
+knitr::opts_knit$set(root.dir = base_path)
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+
+#### Set folder path for datasets and figures
+```{r}
+set.seed(42)
+file_path = 'figure1/data/'
+data_save = 'figure1/results/'
+figs_save = 'figure1/figures/'
+```
+
+
+## 1. Load 10X datasets (CaRPool-seq)
+```{r, eval=FALSE}
+# https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10030154/
+# GSM6596921	THP1 and HEK293FT cells, mRNA-derived cDNA 10x lane 1
+data_path <- paste0(file_path, 'CaRPool_seq/')
+meta <- read.table(paste0(data_path, 'GSE213957_THP1-CaRPool-seq.metadata.tsv.gz'))
+barcode_dir = paste0(data_path, 'THP1-CaRPool-seq_and_HEK293FTstabRNA.GEXGDO1.barcodes.tsv.gz')
+count_dir = paste0(data_path, 'THP1-CaRPool-seq_and_HEK293FTstabRNA.GEXGDO1.matrix.mtx.gz')
+gene_dir = paste0(data_path, 'THP1-CaRPool-seq_and_HEK293FTstabRNA.GEXGDO1.features.tsv.gz')
+counts <- Matrix::readMM(gzcon(file(count_dir, open="rb")))
+barcodes <- read.table(barcode_dir, header = FALSE)
+genes <- read.table(gene_dir, header = FALSE, sep = '\t')
+colnames(counts) <- paste0('L1_',barcodes$V1)
+rownames(counts) <- genes$V2
+counts <- as.matrix(counts)
+thp1_CaRPool <- counts[, intersect(rownames(meta), colnames(counts))]
+saveRDS(thp1_CaRPool, file = paste0(data_save, 'thp1_CaRPool.rds'))
+```
+
+
+## 2. Load STAGseq datasets
+```{r, eval=FALSE}
+seu <- readRDS(paste0(data_save, 'Hypr_seurat_label_based_all.rds'))
+# THP1
+thp1 <- seu[, seu$type ==  "THP1"]
+thp1_HyPR <- as.matrix(thp1@assays$RNA@layers$counts)
+colnames(thp1_HyPR) <- colnames(thp1)
+rownames(thp1_HyPR) <- rownames(thp1)
+saveRDS(thp1_HyPR, file = paste0(data_save, 'thp1_HyPR_counts.rds'))
+# Jurkat
+jurkat <- seu[, seu$type ==  "Jurkat"]
+jurkat_HyPR <- as.matrix(jurkat@assays$RNA@layers$counts)
+colnames(jurkat_HyPR) <- colnames(jurkat)
+rownames(jurkat_HyPR) <- rownames(jurkat)
+saveRDS(jurkat_HyPR, file = paste0(data_save, 'jurkat_HyPR_counts.rds'))
+```
+
+
+## 3. Comparation of sensitivity
+```{r, global=TRUE}
+thp1_HyPR <- readRDS(paste0(data_save, 'thp1_HyPR_counts.rds'))
+thp1_CaRPool <- readRDS(paste0(data_save, 'thp1_CaRPool.rds'))
+batch_colors <- c("10X" = alpha("#D95F02", 0.7), "STAGseq" = alpha("#1B9E77", 0.7)) 
+
+# 3.1. Overlapping genes (removed 0 genes both in 10x and STAGseq)
+gene_overlap <- intersect(
+  rownames(thp1_CaRPool)[rowSums(thp1_CaRPool) > 0],
+  rownames(thp1_HyPR)[rowSums(thp1_HyPR) > 0]
+)
+use_log = 'log2'
+for (order_by in c("STAGseq", "10X")) {
+  dt_hypr <- as.data.frame(thp1_HyPR[gene_overlap, ])  %>%
+    .[, order(-colSums(.))] %>% .[order(rowSums(.)), ] 
+  dt_hypr <- data.frame(sum_umis = rowSums(dt_hypr), sd = apply(dt_hypr, 1, sd)) 
+  dt_hypr$sum_umis_norm <- dt_hypr$sum_umis/ncol(thp1_HyPR)
+  dt_hypr <- dt_hypr %>% {
+    .$gene <- rownames(.)
+    .$batch <- 'STAGseq'
+  ;.}
+  
+  dt_10x <- as.data.frame(thp1_CaRPool[gene_overlap, ])  %>%
+    .[, order(-colSums(.))] %>% .[order(rowSums(.)), ] 
+  dt_10x <- data.frame(sum_umis = rowSums(dt_10x), sd = apply(dt_10x, 1, sd)) 
+  dt_10x$sum_umis_norm <- dt_10x$sum_umis/ncol(thp1_CaRPool)
+  dt_10x <- dt_10x %>% {
+    .$gene <- rownames(.)
+    .$batch <- '10X'
+  ;.} 
+  
+  dt_hypr_info <- dt_hypr
+  dt_10x_info <- dt_10x
+
+  if (order_by == "STAGseq") {
+    gene_order <- dt_hypr$gene
+  } else {
+    gene_order <- dt_10x$gene
+  }
+  dt_hypr$gene <- factor(dt_hypr$gene, levels = gene_order)
+  dt_10x$gene <- factor(dt_10x$gene, levels = gene_order) 
+  
+  dt <- rbind(dt_hypr, dt_10x)
+  dt$batch <- factor(dt$batch, levels = c("STAGseq", "10X"))
+  
+  if (use_log == 'log1p') {
+    dt$log_sum_umi <- log1p(dt$sum_umis_norm+1e-15)
+    p <- ggplot(dt, aes(x = gene, y = log_sum_umi, 
+                        fill = batch, color = batch, group = batch)) + 
+      geom_smooth(method = "loess", se = TRUE, alpha = 0.2, span = 0.1) + 
+      scale_fill_manual(values = batch_colors) +
+      scale_color_manual(values = batch_colors) +
+      scale_y_continuous(name="log1p(UMIPerCell)") +
+      scale_x_discrete(
+        name= paste0("Overlapping Genes (Ordered by abundance in ",order_by ,' )')
+      ) +
+      theme_bw() +  
+      theme(legend.key = element_blank(), 
+            legend.direction = "vertical",
+            legend.title = element_blank(),
+            axis.text.x = element_blank(),
+            axis.ticks.x = element_blank(),
+            panel.border = element_blank(),
+            axis.line.x = element_line(color = "black"),
+            axis.line.y = element_line(color = "black"),
+            panel.grid = element_blank()) ; print(p)
+    
+    pdf(paste0(figs_save, 'gene_overlap_order_by_', order_by, '_log1p_Mean_UMIs.pdf'), 
+        height = 4, width = 5)
+    print(p)
+    dev.off()
+  } else if (use_log == 'log2') {
+    dt$log_sum_umi <- log2(dt$sum_umis_norm+1e-15)
+    p <- ggplot(dt, aes(x = gene, y = log_sum_umi, fill = batch,
+                        color = batch, group = batch)) +
+      geom_smooth(method = "loess", se = TRUE, alpha = 0.2, span = 0.1) +
+      scale_fill_manual(values = batch_colors) +
+      scale_color_manual(values = batch_colors) +
+      scale_y_continuous(name="log2(UMIPerCell)") +
+      scale_x_discrete(name= paste0("Overlapping Genes (Ordered by abundance in ",order_by ,' )')) +
+      theme_bw() +
+      theme(legend.key = element_blank(),
+            legend.direction = "vertical",
+            legend.title = element_blank(),
+            axis.text.x = element_blank(),
+            axis.ticks.x = element_blank(),
+            panel.border = element_blank(),
+            axis.line.x = element_line(color = "black"),
+            axis.line.y = element_line(color = "black"),
+            panel.grid = element_blank()) ; print(p)
+  pdf(paste0(figs_save, 'gene_overlap_order_by_', order_by, '_log2_Mean_UMIs.pdf'), 
+      height = 4, width = 5)
+  print(p)
+  dev.off()
+  }
+}
+```
+
+
+#### Percentage of cell with gene expression = 0 in 10X and STAGseq
+```{r, eval=FALSE}
+thp1_HyPR <- readRDS(paste0(data_save,'thp1_HyPR_counts.rds'))
+thp1_CaRPool <- readRDS(paste0(data_save, 'thp1_CaRPool.rds'))
+batch_colors <- c("10X" = alpha("#D95F02", 0.7), "STAGseq" = alpha("#1B9E77", 0.7)) 
+gene_overlap <- intersect(
+  rownames(thp1_CaRPool)[rowSums(thp1_CaRPool) > 0],
+  rownames(thp1_HyPR)[rowSums(thp1_HyPR) > 0]
+)
+
+dt_hypr <- as.data.frame(thp1_HyPR[gene_overlap, ])
+dt_10x <- as.data.frame(thp1_CaRPool[gene_overlap, ])
+percentage_0_umi <- lapply(gene_overlap, function(g){
+  percent_0_umi_hypr <- (sum(dt_hypr[g, ] == 0) / length(dt_hypr[g, ])) * 100
+  percent_0_umi_10x <- (sum(dt_10x[g, ] == 0) / length(dt_10x[g, ])) * 100
+  dt <- data.frame(
+    'gene' = g,
+    'percent_0_umi_hypr' = percent_0_umi_hypr,
+    'percent_0_umi_10x' = percent_0_umi_10x
+  )
+  return(dt)
+}) %>% do.call('rbind',.)
+saveRDS(percentage_0_umi, file = paste0(data_save, 'percentage_0_umi.rds'))
+```
+
+
+#### Plot 
+```{r, global=TRUE}
+batch_colors <- c("10X" = alpha("#D95F02", 0.7), "STAGseq" = alpha("#1B9E77", 0.7)) 
+
+for (order_by in c("STAGseq", "10X")) {
+  if(TRUE){
+  percentage_0_umi <- readRDS(paste0(data_save,'percentage_0_umi.rds')) %>% 
+    pivot_longer(
+      cols = starts_with("percent_0_umi_"),
+      names_to = "batch", values_to = "percent_0_umi") %>% 
+    mutate(batch = ifelse(batch == "percent_0_umi_10x", "10X", "STAGseq"))
+  
+  if (order_by == "STAGseq") {
+    gene_order <- dt_hypr_info$gene
+  } else {
+    gene_order <- dt_10x_info$gene
+  }
+  dt_hypr_info$gene <- factor(dt_hypr_info$gene, levels = gene_order)
+  dt_10x_info$gene <- factor(dt_10x_info$gene, levels = gene_order) 
+  percentage_0_umi$gene <- factor(percentage_0_umi$gene, levels = gene_order) 
+  percentage_0_umi$batch <- factor(percentage_0_umi$batch, levels = c("STAGseq", "10X"))
+
+  p <- ggplot(percentage_0_umi, 
+              aes(x = gene, y = percent_0_umi, fill = batch, 
+                  color = batch, group = batch)) + 
+    geom_smooth(method = "loess", se = TRUE, alpha = 0.2, span = 0.1) + 
+    scale_fill_manual(values = batch_colors) +
+    scale_color_manual(values = batch_colors) +
+    scale_y_continuous(name="Percent of Cells (0 UMI) %") +
+    scale_x_discrete(name=paste0("Overlapping Genes (Ordered by abundance in ",order_by ,' )')) +
+    theme_bw() +  
+    theme(legend.key = element_blank(), 
+          legend.direction = "vertical",
+          legend.title = element_blank(),
+          axis.text.x = element_blank(),
+          axis.ticks.x = element_blank(),
+          panel.border = element_blank(),
+          axis.line.x = element_line(color = "black"),
+          axis.line.y = element_line(color = "black"),
+          panel.grid = element_blank()) ; print(p)
+  
+  pdf(paste0(figs_save, 'gene_overlap_order_by_', order_by, '_percent_0_umi.pdf'), 
+      height = 4, width = 5)
+  print(p)
+  dev.off()
+}
+}
+```
+
+
+#### Select low and high abundance genes for violin plots
+```{r, eval=FALSE}
+select_top <- function(dt1, dt2,  bn1, bn2, top, gene) {
+    df1 <- as.data.frame(dt1[gene_overlap, ]) %>% 
+      .[, order(-colSums(.))] %>% .[,1:top] %>% 
+      .[gene,] %>% as.data.frame() %>% t() %>% 
+      as.data.frame()
+    df1$batch <- bn1
+    df1$top <- top
+    
+    df2 <- as.data.frame(dt2[gene_overlap, ]) %>% 
+      .[, order(-colSums(.))] %>% .[,1:top] %>% 
+      .[gene,] %>% as.data.frame() %>% t() %>% 
+      as.data.frame()
+    df2$batch <- bn2
+    df2$top <- top
+    df <- rbind(df1, df2)
+    df$batch <- factor(df$batch, levels = c("STAGseq", "10X"))
+    return(df)
+}
+
+if(TRUE){
+  dt_hypr <- dt_hypr_info
+  top_gene_list <- c(
+    levels(dt_hypr$gene)[1:30], 
+    levels(dt_hypr$gene)[(length(levels(dt_hypr$gene))-29):(length(levels(dt_hypr$gene)))]
+  )
+  mid_point <- length(levels(dt_hypr$gene)) / 2
+  middle_genes <- levels(dt_hypr$gene)[(mid_point-14):(mid_point+15)]
+  gene_list <- c(top_gene_list, middle_genes)
+  
+  dt_list <- lapply(gene_list, function(x) select_top(
+    thp1_HyPR, thp1_CaRPool, 'STAGseq','10X', 3000, x))
+  p_list <- lapply(1:length(dt_list), function(n){
+    dt <- dt_list[[n]]
+    gene <- gene_list[[n]]
+    dt$batch <- factor(dt$batch, levels = c("STAGseq", "10X"))
+    dt$log_umi <- log2(dt[[gene]]+1e-15) 
+    p <- ggplot(dt, aes(x=batch, y=log_umi, fill=batch)) +
+      geom_violin(alpha=.4) +
+      geom_boxplot(width=.2, fatten=NULL, alpha=.6) +
+      stat_summary(fun="mean", geom="point") +
+      stat_summary(fun.data="mean_se", geom="errorbar", width=.1) +
+      scale_y_continuous(name="log2(UMIs)", limits=c(1, NA)) +
+      labs(title = gene) + 
+      scale_x_discrete(name="") +
+      scale_fill_manual(values=batch_colors) + 
+      theme_bw() +
+      theme(plot.title = element_text(hjust=0.5),
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank()) +
+      guides(fill="none")
+    return(p)
+  })
+  
+  pdf(paste0(figs_save, 'select_low_and_high_abundance_gene.pdf'), height = 64, width = 12)
+  grid.arrange(grobs = p_list, ncol = 4)
+  dev.off()
+}
+```
+
+
+
+## 4. Compare the sensitivity between STAGseq and Bulkseq
+
+
+### Load functions
+```{r}
+# TPM normalization
+tpm <- function(counts, lengths) {
+  rate <- counts / lengths
+  rate / sum(rate, na.rm = TRUE) * 1e6
+}
+
+#  remove outliers
+is_outlier <- function(x) {
+  Q1 <- quantile(x, 0.01, na.rm = TRUE)
+  Q3 <- quantile(x, 0.99, na.rm = TRUE)
+  IQR <- Q3 - Q1
+  x < (Q1 - IQR) | x > (Q3 + IQR)
+}
+
+# UMIPerCell of THP1 and Jurkat
+format_stag_bulk <- function(dt_stag, bulk_dt, str_index, gene_overlap){
+  bulk_dt <- bulk_dt[!duplicated(bulk_dt$X), ]
+  rownames(bulk_dt) <- bulk_dt$X
+  bulk_dt$X <- NULL
+  bulk_dt <- bulk_dt[, grep(str_index, colnames(bulk_dt))]
+  bulk_dt <- bulk_dt[gene_overlap, ]
+
+  # process stagseq
+  dt_hypr <- as.data.frame(dt_stag[gene_overlap, ])  %>%
+    .[, order(-colSums(.))] %>% 
+    .[order(rowSums(.)), ] 
+  dt_hypr <- data.frame(sum_umis = rowSums(dt_hypr))   
+  dt_hypr$umipercell <- dt_hypr$sum_umis/ncol(dt_stag)
+  dt_hypr <- dt_hypr %>% {
+    .$gene <- rownames(.)
+    .$batch <- 'STAGseq'
+    ;.}
+  dt_hypr$gene <- factor(dt_hypr$gene, levels = dt_hypr$gene)
+  dt_hypr <- dt_hypr[, "umipercell", drop = F]
+  
+  # convert gene ID
+  gene_symbols <- rownames(bulk_dt)
+  ensembl_ids <- mapIds(org.Hs.eg.db, keys=gene_symbols, column="ENSEMBL", keytype="SYMBOL", multiVals="first")
+  ensembl_ids <- as.data.frame(ensembl_ids)
+  gene_lengths_sub <- gene_lengths[ensembl_ids$ensembl_ids, , drop =F]
+  gene_lengths_sub$gene <- rownames(ensembl_ids)
+  bulk_tpm <- apply(bulk_dt, 2, function(x) tpm(x, gene_lengths_sub$gene_lengths))
+  bulk_dt <- as.data.frame(rowSums(bulk_tpm)/600000)
+  colnames(bulk_dt) <- "umipercell"
+  bulk_dt <- bulk_dt[rownames(dt_hypr), , drop=F]
+  dt_hypr$logumi <- log2(dt_hypr$umipercell+1e-15) 
+  bulk_dt$logumi <- log2(bulk_dt$umipercell+1e-15) 
+  
+  return(list('stagseq'=dt_hypr, 'bulk'=bulk_dt))
+}
+
+# relative bulk data
+format_THP1_Jurkat_bulk <- function(thp1_hypr, jurkat_HyPR, bulk_dt, gene_order){
+  # combine bulk data
+  bulk_dt <- bulk_dt[!duplicated(bulk_dt$X), ]
+  rownames(bulk_dt) <- bulk_dt$X
+  bulk_dt$X <- NULL
+  bulk_dt <- bulk_dt[gene_order, ]
+  hypr_combine = data.frame(
+    'THP1'=rowSums(thp1_hypr[gene_order, ]), 
+    'Jurkat'=rowSums(jurkat_HyPR[gene_order, ])
+  )
+  hypr_combine$umis <- hypr_combine$THP1/(hypr_combine$Jurkat+1e-15)
+  hypr_combine$THP1 <- NULL
+  hypr_combine$Jurkat <- NULL
+
+  # convert gene ID
+  gene_symbols <- rownames(bulk_dt)
+  ensembl_ids <- mapIds(
+    org.Hs.eg.db, keys=gene_symbols, column="ENSEMBL", 
+    keytype="SYMBOL", multiVals="first"
+  )
+  ensembl_ids <- as.data.frame(ensembl_ids)
+  gene_lengths_sub <- gene_lengths[ensembl_ids$ensembl_ids, , drop =F]
+  gene_lengths_sub$gene <- rownames(ensembl_ids)
+  bulk_tpm <- as.data.frame(apply(bulk_dt, 2, function(x) {
+    tpm(x, gene_lengths_sub$gene_lengths)
+  }))
+  bulk_tpm <- data.frame(
+    'Jurkat' = dplyr::select(bulk_tpm, starts_with("Jurkat")) %>% rowSums(),
+    'THP1' = dplyr::select(bulk_tpm, starts_with("THP1")) %>% rowSums()
+  )
+  bulk_tpm$umis <- bulk_tpm$THP1/(bulk_tpm$Jurkat+1e-15) 
+  bulk_tpm$Jurkat <- NULL
+  bulk_tpm$THP1 <- NULL
+  
+  hypr_combine$logumi <- log2(hypr_combine$umis+1e-15) 
+  bulk_tpm$logumi <- log2(bulk_tpm$umis+1e-15)
+  bulk_tpm <- bulk_tpm[rownames(hypr_combine), , drop=F]
+
+  return(list('bulk'=bulk_tpm,'stagseq'=hypr_combine))
+}
+
+# generate correlation figs
+correlation_plot <- function(data_x, data_y, title, x_label, y_label, 
+                             x_limits = c(NA, NA), y_limits = c(NA, NA)) {
+  ggplot() +
+    geom_point(aes(x = data_x, y = data_y), 
+               size = 0.8, color = '#3182bd', alpha = 0.75) +
+    geom_smooth(aes(x = data_x, y = data_y), 
+                method = 'lm', color = 'purple', 
+                se = TRUE, span = 0.3, linewidth = 0.8) +
+    theme_bw() +
+    labs(title = title, x = x_label, y = y_label) +
+    theme(
+      plot.title = element_text(hjust = 0.5),
+      panel.border = element_blank(),
+      axis.line.x = element_line(color = "black"),
+      axis.line.y = element_line(color = "black"),
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank()) +
+    stat_cor(aes(x = data_x, y = data_y), 
+             method = "pearson", label.sep = ";") +
+    scale_x_continuous(limits = x_limits) +
+    scale_y_continuous(limits = y_limits)
+}
+```
+
+
+#### Prepare gene lengths for TPM normalization
+```{r, eval=FALSE}
+gtf_file <- paste0(file_path, "Homo_sapiens.GRCh38.111.gtf")
+txdb <- GenomicFeatures::makeTxDbFromGFF(gtf_file, format="gtf")
+gene_lengths <- transcriptsBy(txdb, by="gene")
+gene_lengths <- sum(width(reduce(gene_lengths)))
+gene_lengths <- as.data.frame(gene_lengths)
+saveRDS(gene_lengths, paste0(data_save, 'gene_lengths_bulk.rds'))
+```
+
+
+#### Set common genesets for STAGseq, 10X and Bulk datsets
+```{r, global=TRUE}
+# load data
+jurkat_hypr <- readRDS(paste0(data_save, 'jurkat_HyPR_counts.rds'))
+thp1_hypr <- readRDS(paste0(data_save, 'thp1_HyPR_counts.rds'))
+thp1_10x <- readRDS(paste0(data_save, 'thp1_CaRPool.rds'))
+bulk_dt <- read.csv(paste0(file_path, "THP1_Jurkat_bulk.csv"))
+
+# remove 0 genes in 10x (THP1)
+thp1_10x <- thp1_10x[rowSums(thp1_10x) > 0, ]
+
+# remove 0 genes in STAGseq (THP1)
+thp1_hypr <- thp1_hypr[rowSums(thp1_hypr) > 0, ]
+
+# remove 0 genes in STAGseq (Jurkat)
+jurkat_hypr <- jurkat_hypr[rowSums(jurkat_hypr) > 0, ]
+
+# remove 0 genes in bulk data (THP1)
+bulk_dt <- bulk_dt[!duplicated(bulk_dt$X), ]
+rownames(bulk_dt) <- bulk_dt$X
+bulk_dt$X <- NULL
+bulk_dt_thp1 <- bulk_dt[, grep('THP1', colnames(bulk_dt))]
+bulk_dt_thp1 <- bulk_dt_thp1[rowSums(bulk_dt_thp1) > 0, ]
+
+# remove 0 genes in bulk data (Jurkat)
+bulk_dt_jurkat <- bulk_dt[, grep('Jurkat', colnames(bulk_dt))]
+bulk_dt_jurkat <- bulk_dt_jurkat[rowSums(bulk_dt_jurkat) > 0, ]
+
+# Common genesets for THP1
+gene_overlap_thp1 <- intersect(rownames(thp1_10x), rownames(thp1_hypr))
+gene_overlap_thp1 <- intersect(gene_overlap_thp1, rownames(bulk_dt_thp1))
+
+# Common genesets for Jurkat
+gene_overlap_jurkat <- intersect(rownames(bulk_dt_jurkat), rownames(jurkat_hypr))
+
+# Common genesets for all
+gene_overlap <- intersect(gene_overlap_thp1, gene_overlap_jurkat)
+```
+
+
+
+#### Correlation between STAGseq and Bulk (THP1 and Jurkat separately)
+```{r}
+# load data
+jurkat_HyPR <- readRDS(paste0(data_save, 'jurkat_HyPR_counts.rds'))
+thp1_hypr <- readRDS(paste0(data_save, 'thp1_HyPR_counts.rds'))
+bulk_dt <- read.csv(paste0(file_path, "THP1_Jurkat_bulk.csv"))
+gene_lengths <- readRDS(paste0(data_save, 'gene_lengths_bulk.rds'))
+
+for (n in c('THP1', 'Jurkat')) {
+  if (n == 'THP1') {
+    dt_list <- format_stag_bulk(
+      thp1_hypr, bulk_dt,'THP1', gene_overlap_thp1
+    )
+  } else if (n == 'Jurkat') {
+    dt_list <- format_stag_bulk(
+      jurkat_HyPR, bulk_dt,'Jurkat', gene_overlap_jurkat
+    )
+  }
+  
+  stagseq <- dt_list$stagseq
+  bulk <- dt_list$bulk
+
+  p1 <- correlation_plot(
+    stagseq$logumi, 
+    bulk$logumi, 
+    paste0('Correlation between STAGseq and Bulk in ', n),
+    'log2UMIPerCell (STAGseq)', 'log2UMIPerCell (Bulk)')
+  print(p1)
+
+  pdf(paste0(figs_save, 'Correlation_stagseq_bulk_tpm_', n, '.pdf'),
+      height = 4, width = 4.5)
+  print(p1)
+  dev.off()
+}
+```
+
+
+#### Relative correlation between STAGseq and Bulk
+```{r}
+# log2(THP1-UMIPerCell/Jurkat-UMIPerCell)
+jurkat_HyPR <- readRDS(paste0(data_save,'jurkat_HyPR_counts.rds'))
+thp1_hypr <- readRDS(paste0(data_save,'thp1_HyPR_counts.rds'))
+bulk_dt <- read.csv(paste0(file_path, "THP1_Jurkat_bulk.csv"))
+gene_lengths <- readRDS(paste0(data_save, 'gene_lengths_bulk.rds'))
+
+dt_list <- format_THP1_Jurkat_bulk(thp1_hypr, jurkat_HyPR, bulk_dt, gene_overlap)
+stagseq <- dt_list$stagseq
+bulk <- dt_list$bulk
+
+p2 <- correlation_plot(
+  stagseq$logumi, 
+  bulk$logumi, 
+  'Correlation between STAGseq and Bulk', 
+  'log2(THP1/Jurkat of UMIPerCell) - STAGseq', 
+  'log2(THP1/Jurkat of UMIPerCell) - Bulk', 
+  y_limits = c(-15, 15))
+print(p2)
+
+pdf(paste0(figs_save, 'Correlation_relative_stag_bulk_tpm.pdf'),
+    height = 4, width = 4.5)
+print(p2)
+dev.off()
+```
+
+
+#### Compare sensitivity between STAGseq and 10X (THP1)
+```{r}
+# using UMIPerCell
+thp1_HyPR <- readRDS(paste0(data_save,'thp1_HyPR_counts.rds'))
+thp1_CaRPool <- readRDS(paste0(data_save, 'thp1_CaRPool.rds'))
+
+# hypr
+dt_hypr <- as.data.frame(thp1_HyPR[gene_overlap_thp1, ]) %>%
+  .[, order(-colSums(.))] %>% 
+  .[order(rowSums(.)), ] 
+dt_hypr <- data.frame(
+  umiPerCell = rowMeans(dt_hypr), 
+  sd = apply(dt_hypr, 1, sd)
+)   
+dt_hypr <- dt_hypr %>% {
+  .$gene <- rownames(.)
+  .$batch <- 'STAGseq'
+;.}
+dt_hypr$gene <- factor(dt_hypr$gene, levels = dt_hypr$gene)
+dt_hypr <- dt_hypr[order(dt_hypr$gene),]
+dt_hypr$logUMIPerCell <- log2(dt_hypr$umiPerCell+1e-15)
+
+# 10X
+dt_10x <- as.data.frame(thp1_CaRPool[gene_overlap_thp1, ])  %>%
+  .[, order(-colSums(.))] %>% 
+  .[order(rowSums(.)), ] 
+dt_10x <- data.frame(
+  umiPerCell = rowMeans(dt_10x), 
+  sd = apply(dt_10x, 1, sd)
+)   
+dt_10x <- dt_10x %>% {
+  .$gene <- rownames(.)
+  .$batch <- '10x'
+;.}
+dt_10x$gene <- factor(dt_10x$gene, levels = levels(dt_hypr$gene))
+dt_10x <- dt_10x[order(dt_10x$gene),]
+dt_10x$logUMIPerCell <- log2(dt_10x$umiPerCell+1e-15) 
+
+# plot
+p3 <- correlation_plot(
+  log2(dt_hypr$umiPerCell + 1e-15), 
+  log2(dt_10x$umiPerCell + 1e-15), 
+  'Correlation between STAGseq and 10X', 
+  'log2(UMIPerCell) - STAGseq', 
+  'log2(UMIPerCell) - 10X')
+print(p3)
+
+pdf(paste0(figs_save, 'Correlation_between_10x_and_STAG.pdf'),
+    height = 4, width = 4.5)
+print(p3)
+dev.off()
+```
+
+
+#### Compare sensitivity between Bulk and 10X (THP1)
+```{r}
+thp1_10x <- readRDS(paste0(data_save, 'thp1_CaRPool.rds'))
+bulk_dt <- read.csv(paste0(file_path, "THP1_Jurkat_bulk.csv"))
+
+dt_list <- format_stag_bulk(thp1_10x, bulk_dt, 'THP1', gene_overlap_thp1)
+dt_10x <- dt_list$stagseq
+bulk <- dt_list$bulk
+
+p4 <- correlation_plot(
+  dt_10x$logumi, bulk$logumi,
+  'Correlation between 10X and Bulk in THP1',
+  'log2UMIPerCell (10X)', 'log2UMIPerCell (Bulk)'
+) 
+print(p4)
+
+pdf(paste0(figs_save, 'Correlation_10X_bulk_tpm_THP1.pdf'),
+    height = 4, width = 4.5)
+print(p4)
+dev.off()
+```
+
+
+
