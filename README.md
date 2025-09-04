@@ -37,6 +37,6 @@ For more information on the arguments, you can use the -h flag.
 
 
 
-📊 Analysis Notebooks for Nature Paper Figures
+📊 Analysis Notebooks for Paper Figures
 The notebooks directory contains Jupyter notebooks used to generate the figures for our paper. Each subdirectory corresponds to a specific figure in the paper.
 
