@@ -20,8 +20,11 @@ This repository contains the scripts and functions necessary to **process, merge
 
 ## 🧬 Workflow Overview
 
-<p align="center"><b>Fig 1.</b> A brief illustration of the STAG-seq workflow.</p>
-
+<p align="center">
+  <img src="https://github.com/klarman-cell-observatory/STAG-Seq/blob/main/python_functions/image.png" alt="STAG-seq workflow" width="600"/>
+  <br/>
+  <b>Fig 1.</b> A brief illustration of the STAG-seq workflow.
+</p>
 ---
 
 ## 🧬 Data Processing
