@@ -28,8 +28,6 @@ This repository contains the scripts and functions necessary to **process, merge
 
 ### HyPR-seq Data
 
-To process your HyPR-seq data, you will need to be in a **UGER environment**, such as the Broad cluster.
-
 **Activate your Conda environment**
 
 Edit `scripts/process_hyprseq/python_launcher.sh` to point to your Anaconda environment, then run:
