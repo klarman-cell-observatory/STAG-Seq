@@ -1,5 +1,5 @@
 """
-design slidelock probes
+design slidelock probes # by Luyi Tian
 """
 import os
 from collections import Counter
