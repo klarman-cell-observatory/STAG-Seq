@@ -1,4 +1,4 @@
-#parse gene annotation
+#parse gene annotation # # by Luyi Tian
 from collections import namedtuple, defaultdict
 import copy
 from interlap import InterLap
