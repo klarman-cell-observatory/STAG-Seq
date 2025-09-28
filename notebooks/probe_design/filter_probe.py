@@ -1,5 +1,5 @@
 """
-design slidelock probes
+design slidelock probes # by Luyi Tian & Qiyu Gong
 """
 import os
 import sys
