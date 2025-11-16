@@ -21,45 +21,9 @@ This repository contains the scripts and functions necessary to **process, merge
 
 ## 🧬 Data Processing
 
-### HyPR-seq Data
+Raw STAG-seq RNA modality FASTQ data (`.fastq.gz`) was processed into cell-by-probe UMI count matrices (`count_matrix_f100.h5ad`) using a reproducible, containerized WDL pipeline executed on the Terra.bio platform.
 
-**Activate your Conda environment**
-
-Edit `scripts/process_hyprseq/python_launcher.sh` to point to your Anaconda environment, then run:
-
-```bash
-. ~/miniconda3/etc/profile.d/conda.sh
-conda activate ~/miniconda3 > activate_output.txt
-```
-
-**Run the processing script**
-
-Execute the following command to process your FASTQ files:
-
-```bash
-sh process_hyprseq/launch_script_v2.sh [FASTQ_PATH] [PROBE_SET_FILE]
-```
-
-This script will generate a `count_matrix_f100.txt` file containing probe counts per cell barcode.
-This matrix can be used to construct a **Scanpy** or **Seurat** object for downstream analysis.
-
----
-
-### Tapestri Data and Merging
-
-Once you have the `.loom` file from the Tapestri pipeline, you can call variants and merge the data with your HyPR-seq results.
-
-Run the merging script:
-
-```bash
-python merge/merge_hyprseq_and_tapestri_output.py \
-  -r example/HyPR_matrix.txt \
-  -d example/Tapestri_cells.loom \
-  -o example/outs \
-  -g germline_mutations.txt
-```
-
-For more information on the script's arguments, use the `-h` flag.
+The complete pipeline, including the WDL workflow, Docker environment, and detailed, step-by-step instructions for execution, is available in the `scripts` directory of this repository. Please refer to the `README.md` file within that folder for the full data processing guide.
 
 ---
 
