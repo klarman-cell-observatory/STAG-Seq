@@ -1,7 +1,5 @@
 # STAG-seq
 
-Advancements in genomics have revolutionized human genetics by uncovering the genetic architecture of disease. However, identifying causal variants and their mechanisms of action remains a challenge for therapeutic translation.
-
 Here, we integrate variant editing with simultaneous measurements of genomic DNA and RNA to phenotype variants associated with inborn errors of immunity and autoimmune disease.
 
 Sensitive Transcriptomics And Genotyping by sequencing (**STAG-seq**) enabled high-content variant functionalization in primary human immune cells while controlling for allele-dose effects and editing precision.
@@ -15,7 +13,7 @@ This repository contains the scripts and functions necessary to **process, merge
 ## 🧬 Workflow Overview
 
 <p align="center">
-  <img src="https://github.com/klarman-cell-observatory/STAG-Seq/blob/main/python_functions/image.png" alt="STAG-seq workflow" width="600"/>
+  <img src="https://github.com/klarman-cell-observatory/STAG-Seq/blob/main/python_functions/Github.jpg" alt="STAG-seq workflow" width="600"/>
   <br/>
   <b>Fig 1.</b> A brief illustration of the STAG-seq workflow.
 </p>
