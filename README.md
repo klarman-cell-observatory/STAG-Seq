@@ -25,6 +25,8 @@ Raw STAG-seq RNA modality FASTQ data (`.fastq.gz`) was processed into cell-by-pr
 
 The complete pipeline, including the WDL workflow, Docker environment, and detailed, step-by-step instructions for execution, is available in the `scripts` directory of this repository. Please refer to the `README.md` file within that folder for the full data processing guide.
 
+The STAG-seq DNA modality was processed using the commercial MissionBio Tapestri pipeline (v3) on their web portal, which performs cell calling and GATK-based genotyping. All reference and amplicon panel files used for this analysis will be available on GEO upon publication. 
+
 ---
 
 ## 📊 Analysis Notebooks for Paper Figures
