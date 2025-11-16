@@ -6,12 +6,6 @@ Here, we integrate variant editing with simultaneous measurements of genomic DNA
 
 Sensitive Transcriptomics And Genotyping by sequencing (**STAG-seq**) enabled high-content variant functionalization in primary human immune cells while controlling for allele-dose effects and editing precision.
 
-Accordingly, we systematically defined functions for rare coding variants associated with monogenic diseases of immune dysregulation that impact type II interferon signaling in macrophages, thus defining mechanisms and explaining modes of inheritance.
-
-Additionally, we elucidated the function of an autoimmunity-linked pleiotropic noncoding variant by defining its cis-regulatory role in **TNRC18** expression in T cells and ensuing trans effects on endogenous retroviral element derepression.
-
-Finally, we functionally dissected a credible set of noncoding variants in linkage disequilibrium associated with autoimmunity, implicating a causal variant that increases **TCF7** expression in T cells and modulates cell fate decisions skewing memory versus effector status.
-
 Collectively, we provide a framework to bridge the gap between genetic associations and functional mechanisms to advance our understanding of disease biology.
 
 This repository contains the scripts and functions necessary to **process, merge, and analyze** this data, allowing for comprehensive insights into cellular heterogeneity.
