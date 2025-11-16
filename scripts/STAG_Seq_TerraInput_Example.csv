@@ -1,0 +1,2 @@
+﻿FASTQ_PATH,PROBE_PATH
+gs://fc-secure-15bf93cd-d43c-4a70-b7de-0ee36bf3a52a/stagseq/TCF7_CD4-8_HyPR_S26_R1_001.fastq.gz,gs://fc-secure-15bf93cd-d43c-4a70-b7de-0ee36bf3a52a/stagseq/9-10-2024_probe.txt

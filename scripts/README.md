@@ -1,34 +1,37 @@
-# Scripts used to process HyPR-seq and Tapestri data
-
 ## 1. How to process HyPR-seq data
-This code is currently written to be processed on the UGER in Broad cluster. To run: 
+This code is adapted to processed on Terra, the original code was a product of the STAG-Seq repo:
 
-Edit to the `scripts/process_hyprseq/python_launcher.sh` to activate your own Anaconda environment:
+Dockerfile is included in this repo, a file that is not included for external users is the `barcode_lookup.pkl` file, which is included for internal Broad users within the Docker image.
 
-```
-.~/miniconda3/etc/profile.d/conda.sh
-conda activate ~/miniconda3 > activate_output.txt
-```
+Other required bioinformatics tools: seqtk, seqkit, umi_tools
 
-Run by using:
-```
-sh process_hyprseq/launch_script_v2.sh  FASTQ_PATH  PROBE_SET_FILE
-```
+`environment.yml` has been provided for HPC or local usage.
 
-This will generate a `count_matrix_f100.txt` file that is the count of all probes in HyPR-seq dataset per cell barcode. 
+## To run the pipeline:
 
-## 2. How to call variants from Tapestri data and merge with HyPR-seq data
-Have your `.loom` file from the Tapestri pipeline available. 
+Pipeline monitoring and runtime will be managed within a terra.bio (Cromwell) workspace.
 
-Run the variant calling script using the following command. This will also merge the HyPR-seq and Tapestri outputs:
+Import the stag-seq-rna pipeline from the Terra WDL repository into a workspace of choice:
 
-```
-Usage: 
-	python merge/merge_hyprseq_and_tapestri.py -h
-Run: 
-	python merge/merge_hyprseq_and_tapestri_output.py \
-		-r example/HyPR_matrix.txt \  
-  		-d example/Tapestri_cells.loom \
-  		-o example/outs \
-  		-g germline_mutations.txt
-```
+https://app.terra.bio/#workflows/STAG_Seq/STAG_Seq_RNA/10 (Not currently publically readable due to final polishing)
+
+Fill in the provided `STAG_Seq_TerraInput_Example.csv` with each row in the csv corresponding to the paths of a sample fastq and its corresponding probe file. Upload the csv onto the cloud as well, that will serve as the `input_fastq_probe_table`.
+
+Within the Terra workflow interface fill out the required fields (`copy_intermediates`, `docker_registry`, `input_fastq_probe_table`, `output_directory`, `run_filter_group_only` and scale the computational specifications  (`disk_space`, `memory`, `num_cpu`) to the size of your data.
+
+<img width="1133" height="380" alt="image" src="https://github.com/user-attachments/assets/8ab074b3-13c2-46a1-bf42-eed3ab35b896" />
+
+`FASTQ_PATH` could be either in .fastq or .fastq.gz
+
+`FASTQ_PATH`: `/path/in/cloud/Th17_ROR_Acti_Probe4_S1_R1_001.fastq.gz` 
+
+`PROBE_PATH`: `/path/in/cloud/5-9-2025_probe_RORC.txt` (THIS WILL BE EXPERIMENT SPECIFIC)
+
+Example csv provided here:
+<img width="973" height="87" alt="image" src="https://github.com/user-attachments/assets/958b4477-b502-43ca-8ccf-287ec60b6ac0" />
+
+The `copy_intermediates` flag is helpful if you want to export the intermediary files generated within the scripts (barcode/umi/probe extracted fastqs), exported to the output_directory.
+
+The `run_filter_group_only` flag is useful for skipping the lengthy extraction step, granted you have copied the intermediate outputs, it will look for files in the export location specified above in the variable.
+
+This will generate a sample labeled `count_matrix_f100.h5ad` file that is the count of all probes in HyPR-seq dataset per cell barcode. 
