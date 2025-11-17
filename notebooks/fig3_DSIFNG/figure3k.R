@@ -1,5 +1,4 @@
 # --- 1. Load Required Libraries ---
-# Ensure you have these libraries installed:
 # install.packages("tidyverse")
 # install.packages("ggrepel")
 
@@ -9,7 +8,7 @@ library(ggrepel)   # For non-overlapping text labels
 # --- 2. Configuration ---
 # --- A. Define Genotypes and File Paths ---
 # Path to the WIDE precomputed CSV file that contains all comparisons
-input_wide_csv_file <- "/mnt/data/project/25_04_29_Figure3_reanalysis/src/analysis_results_v9/deg_vs_AAV_control_wide_table/all_pairwise_deg_stats_vs_AAV_control_wide.csv" # <-- UPDATE THIS PATH
+input_wide_csv_file <- "../Data/figure3/deg_vs_AAV_control_wide_table/all_pairwise_deg_stats_vs_AAV_control_wide.csv" # <-- UPDATE THIS PATH
 
 # Define the exact genotype names from the wide table's columns you want to compare
 gof1_genotype <- "STAT1_C324R_hom_pure"

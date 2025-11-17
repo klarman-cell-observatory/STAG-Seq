@@ -17,6 +17,8 @@ This repository contains the scripts and functions necessary to **process, merge
   <br/>
   <b>Fig 1.</b> A brief illustration of the STAG-seq workflow.
 </p>
+
+
 ---
 
 ## 🧬 Data Processing
@@ -74,3 +76,9 @@ The `notebooks/` directory contains the **Jupyter** and **R** notebooks used to 
 * `fig5_preprocess.ipynb`
 * `TCF7.ini`
 
+### Figure 6: RORC
+
+* `figure6_preprocess.ipynb`
+* `figure6_preprocess2.ipynb`
+* `figure6d-p.ipynb`
+* `RORC.ini`
