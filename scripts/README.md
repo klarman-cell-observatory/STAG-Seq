@@ -13,7 +13,7 @@ Pipeline monitoring and runtime will be managed within a terra.bio (Cromwell) wo
 
 Import the stag-seq-rna pipeline from the Terra WDL repository into a workspace of choice:
 
-https://app.terra.bio/#workflows/STAG_Seq/STAG_Seq_RNA/10 (Not currently publically readable due to final polishing)
+https://app.terra.bio/#workflows/STAG_Seq/STAG_Seq_RNA/19 (Not currently publically readable due to final polishing)
 
 Fill in the provided `STAG_Seq_TerraInput_Example.csv` with each row in the csv corresponding to the paths of a sample fastq and its corresponding probe file. Upload the csv onto the cloud as well, that will serve as the `input_fastq_probe_table`.
 
