@@ -58,6 +58,7 @@ task process_sample {
         # Split CSV line manually using awk (since WDL 1.0 lacks split())
         FASTQ_PATH=$(echo "~{line}" | awk -F, '{print $1}')
         PROBE_PATH=$(echo "~{line}" | awk -F, '{print $2}')
+        MULTIPLEX_PATH=$(echo "~{line}" | awk -F, '{print $3}')
         RAW_NAME=$(basename "$FASTQ_PATH")
 
         MNT_PATH="/mnt/disks/cromwell_root/"
@@ -68,50 +69,107 @@ task process_sample {
         echo "Processing sample: $ROOT_NAME"
         mkdir -p "$MNT_PATH"/raw
         mkdir -p "$MNT_PATH"/out
+        if [ -n "$MULTIPLEX_PATH" ]; then
+            echo "Running multiplexed analysis"
+            if [ "~{run_filter_group_only}" == "true" ]; then
+                echo "Copying probe file"
+                gcloud storage cp "$PROBE_PATH" "$MNT_PATH"/raw/
 
-        if [ "~{run_filter_group_only}" == "true" ]; then
-            echo "Copying probe file"
-            gcloud storage cp "$PROBE_PATH" "$MNT_PATH"/raw/
-            
-            echo "Retrieving existing bc file"
-            gcloud storage cp ~{output_directory}"$ROOT_NAME"_output.txt "$MNT_PATH"/out/
+                echo "Copying multiplex file"
+                gcloud storage cp "$MULTIPLEX_PATH" "$MNT_PATH"/raw/
 
-            echo "Running filter_and_group.py"
-            python /STAG_Seq_RNA/filter_and_group.py \
-                -p "${MNT_PATH}/raw/$(basename $PROBE_PATH)" \
-                -f "${MNT_PATH}/out/${ROOT_NAME}_output.txt" \
-                -b /ref/barcode_lookup.pkl
+                echo "Retrieving existing bc file"
+                gcloud storage cp ~{output_directory}"$ROOT_NAME"_output.txt "$MNT_PATH"/out/
 
-            echo "Uploading results to GCS"
-            gcloud storage cp count_matrix_f100.h5ad "~{output_directory}${ROOT_NAME}_count_matrix.h5ad"
-        else
-            echo "Copying FASTQ from $FASTQ_PATH"
-            gcloud storage cp "$FASTQ_PATH" "$MNT_PATH"/raw/
+                echo "Running filter_and_group_demultiplex.py"
+                python /STAG_Seq_RNA/filter_and_group_demultiplex.py \
+                    -p "${MNT_PATH}/raw/$(basename $PROBE_PATH)" \
+                    -f "${MNT_PATH}/out/${ROOT_NAME}_output.txt" \
+                    -b /ref/barcode_lookup.pkl \
+                    -m "${MNT_PATH}/barcode_batch_mapping.csv" \
+                    -x "${MNT_PATH}/raw/$(basename $MULTIPLEX_PATH)"
 
-            echo "Running chunk_script.sh"
-            bash /STAG_Seq_RNA/chunk_script.sh "$MNT_PATH/raw/$RAW_NAME" "$RAW_NAME" "$ROOT_NAME"
-            
-            cat bc_extract_${ROOM_NAME}.log
-            ls /mnt/disks/cromwell_root/
+                echo "Uploading results to GCS"
+                gcloud storage cp count_matrix_f100.h5ad "~{output_directory}${ROOT_NAME}_count_matrix.h5ad"
+            else
+                echo "Copying FASTQ from $FASTQ_PATH"
+                gcloud storage cp "$FASTQ_PATH" "$MNT_PATH"/raw/
 
-            if [ "~{copy_intermediates}" == "true" ]; then
-                echo "Copying intermediate file output from chunking script"
-                gcloud storage cp "$MNT_PATH$ROOT_NAME_output.txt" ~{output_directory}
+                echo "Running chunk_script_demultiplex.sh"
+                bash /STAG_Seq_RNA/chunk_script_demultiplex.sh "$MNT_PATH/raw/$RAW_NAME" "$RAW_NAME" "$ROOT_NAME"
+
+                cat bc_extract_${ROOM_NAME}.log
+                ls /mnt/disks/cromwell_root/
+
+                if [ "~{copy_intermediates}" == "true" ]; then
+                    echo "Copying intermediate file output from chunking script"
+                    gcloud storage cp "$MNT_PATH$ROOT_NAME_output.txt" ~{output_directory}
+                fi
+                
+                mv ${MNT_PATH}${ROOT_NAME}_output.txt ${MNT_PATH}/out/
+
+                echo "Copying probe file"
+                gcloud storage cp "$PROBE_PATH" "$MNT_PATH"/raw/
+
+                echo "Copying multiplex file"
+                gcloud storage cp "$MULTIPLEX_PATH" "$MNT_PATH"/raw/
+
+                echo "Running filter_and_group_demultiplex.py"
+                python /STAG_Seq_RNA/filter_and_group_demultiplex.py \
+                    -p "${MNT_PATH}/raw/$(basename $PROBE_PATH)" \
+                    -f "${MNT_PATH}/out/${ROOT_NAME}_output.txt" \
+                    -b /ref/barcode_lookup.pkl \
+                    -m "${MNT_PATH}/barcode_batch_mapping.csv" \
+                    -x "${MNT_PATH}/raw/$(basename $MULTIPLEX_PATH)"
+
+                echo "Uploading results to GCS"
+                gcloud storage cp count_matrix_f100.h5ad "~{output_directory}${ROOT_NAME}_count_matrix.h5ad"
             fi
-            
-            mv ${MNT_PATH}${ROOT_NAME}_output.txt ${MNT_PATH}/out/
+        else
+            echo "Running standard analysis"
+            if [ "~{run_filter_group_only}" == "true" ]; then
+                echo "Copying probe file"
+                gcloud storage cp "$PROBE_PATH" "$MNT_PATH"/raw/
+                
+                echo "Retrieving existing bc file"
+                gcloud storage cp ~{output_directory}"$ROOT_NAME"_output.txt "$MNT_PATH"/out/
 
-            echo "Copying probe file"
-            gcloud storage cp "$PROBE_PATH" "$MNT_PATH"/raw/
+                echo "Running filter_and_group.py"
+                python /STAG_Seq_RNA/filter_and_group.py \
+                    -p "${MNT_PATH}/raw/$(basename $PROBE_PATH)" \
+                    -f "${MNT_PATH}/out/${ROOT_NAME}_output.txt" \
+                    -b /ref/barcode_lookup.pkl
 
-            echo "Running filter_and_group.py"
-            python /STAG_Seq_RNA/filter_and_group.py \
-                -p "${MNT_PATH}/raw/$(basename $PROBE_PATH)" \
-                -f "${MNT_PATH}/out/${ROOT_NAME}_output.txt" \
-                -b /ref/barcode_lookup.pkl
+                echo "Uploading results to GCS"
+                gcloud storage cp count_matrix_f100.h5ad "~{output_directory}${ROOT_NAME}_count_matrix.h5ad"
+            else
+                echo "Copying FASTQ from $FASTQ_PATH"
+                gcloud storage cp "$FASTQ_PATH" "$MNT_PATH"/raw/
+                echo "Running chunk_script.sh"
 
-            echo "Uploading results to GCS"
-            gcloud storage cp count_matrix_f100.h5ad "~{output_directory}${ROOT_NAME}_count_matrix.h5ad"
+                bash /STAG_Seq_RNA/chunk_script.sh "$MNT_PATH/raw/$RAW_NAME" "$RAW_NAME" "$ROOT_NAME"
+                
+                cat bc_extract_${ROOM_NAME}.log
+                ls /mnt/disks/cromwell_root/
+
+                if [ "~{copy_intermediates}" == "true" ]; then
+                    echo "Copying intermediate file output from chunking script"
+                    gcloud storage cp "$MNT_PATH$ROOT_NAME_output.txt" ~{output_directory}
+                fi
+                
+                mv ${MNT_PATH}${ROOT_NAME}_output.txt ${MNT_PATH}/out/
+                echo "Copying probe file"
+                gcloud storage cp "$PROBE_PATH" "$MNT_PATH"/raw/
+
+                echo "Running filter_and_group.py"
+                python /STAG_Seq_RNA/filter_and_group.py \
+                    -p "${MNT_PATH}/raw/$(basename $PROBE_PATH)" \
+                    -f "${MNT_PATH}/out/${ROOT_NAME}_output.txt" \
+                    -b /ref/barcode_lookup.pkl
+
+                echo "Uploading results to GCS"
+                gcloud storage cp count_matrix_f100.h5ad "~{output_directory}${ROOT_NAME}_count_matrix.h5ad"
+            fi
         fi
     >>>
 

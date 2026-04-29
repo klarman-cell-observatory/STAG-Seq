@@ -6,16 +6,24 @@ RUN mkdir -p /ref && chmod 777 /ref
 RUN mkdir -p /raw && chmod 777 /raw
 
 # Pull the repo
+RUN apk add --no-cache git
+RUN git clone https://github.com/klarman-cell-observatory/STAG-Seq /STAG-Seq-main
 
 # Copy required files
-COPY STAG-seq-minimal-master/barcode_lookup.pkl /ref/
-COPY STAG-seq-minimal-master/environment.yml .
-COPY STAG-seq-minimal-master/scripts/chunk_script.sh .
-COPY STAG-seq-minimal-master/scripts/filter_and_group.py .
-COPY STAG-seq-minimal-master/whitelist_missionbio.txt /ref/
+#COPY STAG-Seq-main/barcode_lookup.pkl /ref/
+COPY STAG-Seq-main/scripts/environment.yml .
+COPY STAG-Seq-main/scripts/scripts/chunk_script.sh .
+COPY STAG-Seq-main/scripts/scripts/chunk_script_demultiplex.sh .
+COPY STAG-Seq-main/scripts/scripts/filter_and_group.py .
+COPY STAG-Seq-main/scripts/scripts/filter_and_group_demultiplex.py .
+COPY STAG-Seq-main/scripts/ref/whitelist_missionbio.txt /ref/
 
 RUN chmod +x chunk_script.sh
+RUN chmod +x chunk_script_demultiplex.sh
 RUN chmod +x filter_and_group.py
+RUN chmod +x filter_and_group_demultiplex.py
+
+RUN rm -rf STAG-Seq-main
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
