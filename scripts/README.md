@@ -27,6 +27,8 @@ Within the Terra workflow interface fill out the required fields (`copy_intermed
 
 `PROBE_PATH`: `/path/in/cloud/5-9-2025_probe_RORC.txt` (THIS WILL BE EXPERIMENT SPECIFIC)
 
+`MULTIPLEX_PATH`: `path/in/cloud/multiplex.csv` (LEAVE BLANK IF NOT NEEDED)
+
 Example csv provided here:
 <img width="973" height="87" alt="image" src="https://github.com/user-attachments/assets/958b4477-b502-43ca-8ccf-287ec60b6ac0" />
 
