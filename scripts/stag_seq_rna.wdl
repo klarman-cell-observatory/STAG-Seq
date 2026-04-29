@@ -70,7 +70,7 @@ task process_sample {
         mkdir -p "$MNT_PATH"/raw
         mkdir -p "$MNT_PATH"/out
         if [ -n "$MULTIPLEX_PATH" ]; then
-            echo "Running multiplexed analysis"
+            echo "Running multiplexing analysis"
             if [ "~{run_filter_group_only}" == "true" ]; then
                 echo "Copying probe file"
                 gcloud storage cp "$PROBE_PATH" "$MNT_PATH"/raw/
@@ -81,8 +81,8 @@ task process_sample {
                 echo "Retrieving existing bc file"
                 gcloud storage cp ~{output_directory}"$ROOT_NAME"_output.txt "$MNT_PATH"/out/
 
-                echo "Running filter_and_group_demultiplex.py"
-                python /STAG_Seq_RNA/filter_and_group_demultiplex.py \
+                echo "Running filter_and_group_demultiplexing.py"
+                python /STAG_Seq_RNA/filter_and_group_demultiplexing.py \
                     -p "${MNT_PATH}/raw/$(basename $PROBE_PATH)" \
                     -f "${MNT_PATH}/out/${ROOT_NAME}_output.txt" \
                     -b /ref/barcode_lookup.pkl \
@@ -95,8 +95,8 @@ task process_sample {
                 echo "Copying FASTQ from $FASTQ_PATH"
                 gcloud storage cp "$FASTQ_PATH" "$MNT_PATH"/raw/
 
-                echo "Running chunk_script_demultiplex.sh"
-                bash /STAG_Seq_RNA/chunk_script_demultiplex.sh "$MNT_PATH/raw/$RAW_NAME" "$RAW_NAME" "$ROOT_NAME"
+                echo "Running chunk_script_demultiplexing.sh"
+                bash /STAG_Seq_RNA/chunk_script_demultiplexing.sh "$MNT_PATH/raw/$RAW_NAME" "$RAW_NAME" "$ROOT_NAME"
 
                 cat bc_extract_${ROOM_NAME}.log
                 ls /mnt/disks/cromwell_root/
@@ -114,8 +114,8 @@ task process_sample {
                 echo "Copying multiplex file"
                 gcloud storage cp "$MULTIPLEX_PATH" "$MNT_PATH"/raw/
 
-                echo "Running filter_and_group_demultiplex.py"
-                python /STAG_Seq_RNA/filter_and_group_demultiplex.py \
+                echo "Running filter_and_group_demultiplexing.py"
+                python /STAG_Seq_RNA/filter_and_group_demultiplexing.py \
                     -p "${MNT_PATH}/raw/$(basename $PROBE_PATH)" \
                     -f "${MNT_PATH}/out/${ROOT_NAME}_output.txt" \
                     -b /ref/barcode_lookup.pkl \
