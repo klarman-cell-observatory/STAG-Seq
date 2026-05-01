@@ -98,7 +98,7 @@ task process_sample {
                 echo "Running chunk_script_demultiplexing.sh"
                 bash /STAG_Seq_RNA/chunk_script_demultiplexing.sh "$MNT_PATH/raw/$RAW_NAME" "$RAW_NAME" "$ROOT_NAME"
 
-                cat bc_extract_${ROOM_NAME}.log
+                cat bc_extract_${ROOT_NAME}.log
                 ls /mnt/disks/cromwell_root/
 
                 if [ "~{copy_intermediates}" == "true" ]; then
@@ -149,7 +149,7 @@ task process_sample {
 
                 bash /STAG_Seq_RNA/chunk_script.sh "$MNT_PATH/raw/$RAW_NAME" "$RAW_NAME" "$ROOT_NAME"
                 
-                cat bc_extract_${ROOM_NAME}.log
+                cat bc_extract_${ROOT_NAME}.log
                 ls /mnt/disks/cromwell_root/
 
                 if [ "~{copy_intermediates}" == "true" ]; then
