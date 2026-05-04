@@ -103,7 +103,7 @@ task process_sample {
 
                 if [ "~{copy_intermediates}" == "true" ]; then
                     echo "Copying intermediate file output from chunking script"
-                    gcloud storage cp "$MNT_PATH$ROOT_NAME_output.txt" ~{output_directory}
+                    gcloud storage cp "${MNT_PATH}${ROOT_NAME}_output.txt" ~{output_directory}
                 fi
                 
                 mv ${MNT_PATH}${ROOT_NAME}_output.txt ${MNT_PATH}/out/
@@ -154,7 +154,7 @@ task process_sample {
 
                 if [ "~{copy_intermediates}" == "true" ]; then
                     echo "Copying intermediate file output from chunking script"
-                    gcloud storage cp "$MNT_PATH$ROOT_NAME_output.txt" ~{output_directory}
+                    gcloud storage cp "${MNT_PATH}${ROOT_NAME}_output.txt" ~{output_directory}
                 fi
                 
                 mv ${MNT_PATH}${ROOT_NAME}_output.txt ${MNT_PATH}/out/
