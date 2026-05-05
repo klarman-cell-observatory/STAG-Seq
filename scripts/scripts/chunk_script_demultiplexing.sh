@@ -52,7 +52,11 @@ seqtk seq -r "/mnt/disks/cromwell_root/bc_umi_probe_extracted_${BASE_NAME}.fastq
 
 echo "Creating output file..."
 
-awk -F'_' 'NR % 4 == 1 {
+OUT_FILE="/mnt/disks/cromwell_root/${BASE_NAME}_output.txt"
+MAP_FILE="/mnt/disks/cromwell_root/barcode_batch_mapping.csv"
+
+awk -F'_' -v out="$OUT_FILE" -v map="$MAP_FILE" '
+NR % 4 == 1 {
         barcode = $2
         getline seq
         # 1. Probe: First 25 bases
@@ -67,9 +71,9 @@ awk -F'_' 'NR % 4 == 1 {
         multiplex_idx = substr(seq, length(seq)-15, 6)
 
         # Output the EXACT standard file for Python script
-        print barcode, umi, probe > "/mnt/disks/cromwell_root/${BASE_NAME}_output.txt"
+        print barcode, umi, probe > out
 
         # Output the side-channel mapping file for the multiplex index
-        print barcode "," multiplex_idx > "/mnt/disks/cromwell_root/barcode_batch_mapping.csv"
+        print barcode "," multiplex_idx > map
 
     }' "/mnt/disks/cromwell_root/rev_bc_umi_probe_extracted_${BASE_NAME}.fastq"
