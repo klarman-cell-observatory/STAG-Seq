@@ -59,16 +59,14 @@ awk -F'_' -v out="$OUT_FILE" -v map="$MAP_FILE" '
 NR % 4 == 1 {
         barcode = $2
         getline seq
-        # 1. Probe: First 25 bases
-        probe = substr(seq, 1, 25)
+        # 1. Probe: Last 25 bases
+        probe = substr(seq, length(seq)-24, 25)
 
-        # 2. UMI: Last 10 bases
-        # length(seq)-9 starts exactly 10 bases from the end
-        umi = substr(seq, length(seq)-9, 10)
+        # 2. UMI: First 10 bases
+        umi = substr(seq, 1, 10)
 
-        # 3. Multiplex Index: 6 bases right before the UMI
-        # length(seq)-15 starts exactly 16 bases from the end, and grabs 6 bases
-        multiplex_idx = substr(seq, length(seq)-15, 6)
+        # 3. Multiplex Index: next 6 bases right after the UMI
+        multiplex_idx = substr(seq, 11, 6)
 
         # Output the EXACT standard file for Python script
         print barcode, umi, probe > out
