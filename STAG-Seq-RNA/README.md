@@ -7,7 +7,9 @@ Other required bioinformatics tools: seqtk, seqkit, umi_tools
 
 `environment.yml` has been provided for HPC or local usage.
 
-## To run the pipeline:
+## Pipeline overview:
+
+<img width="1200" height="1470" alt="stag_seq_rna_flowchart" src="https://github.com/user-attachments/assets/f6d8b77f-6f30-472a-8939-068a6a020645" />
 
 Pipeline monitoring and runtime will be managed within a terra.bio (Cromwell) workspace.
 
@@ -19,7 +21,7 @@ Fill in the provided `STAG_Seq_TerraInput_Example.csv` with each row in the csv 
 
 Within the Terra workflow interface fill out the required fields (`copy_intermediates`, `docker_registry`, `input_fastq_probe_table`, `output_directory`, `skip_barcode_extraction` and scale the computational specifications  (`disk_space`, `memory`, `num_cpu`) to the size of your data.
 
-<img width="1133" height="380" alt="image" src="https://github.com/user-attachments/assets/8ab074b3-13c2-46a1-bf42-eed3ab35b896" />
+<img width="695" height="417" alt="image" src="https://github.com/user-attachments/assets/7cc80049-9c56-4d0b-949a-fbf01bea7e30" />
 
 `FASTQ_PATH` could be either in .fastq or .fastq.gz
 
