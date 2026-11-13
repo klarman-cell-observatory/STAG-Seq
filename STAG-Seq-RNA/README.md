@@ -11,13 +11,13 @@ Other required bioinformatics tools: seqtk, seqkit, umi_tools
 
 Pipeline monitoring and runtime will be managed within a terra.bio (Cromwell) workspace.
 
-Import the stag-seq-rna pipeline from the Terra WDL repository into a workspace of choice:
+Import the stag-seq-rna pipeline from the Dockstore into a workspace of choice:
 
-https://app.terra.bio/#workflows/STAG_Seq/STAG_Seq_RNA/19 (Not currently publically readable due to final polishing)
+https://dockstore.org/workflows/github.com/klarman-cell-observatory/STAG-Seq/STAG_Seq_RNA:main?tab=info
 
 Fill in the provided `STAG_Seq_TerraInput_Example.csv` with each row in the csv corresponding to the paths of a sample fastq and its corresponding probe file. Upload the csv onto the cloud as well, that will serve as the `input_fastq_probe_table`.
 
-Within the Terra workflow interface fill out the required fields (`copy_intermediates`, `docker_registry`, `input_fastq_probe_table`, `output_directory`, `run_filter_group_only` and scale the computational specifications  (`disk_space`, `memory`, `num_cpu`) to the size of your data.
+Within the Terra workflow interface fill out the required fields (`copy_intermediates`, `docker_registry`, `input_fastq_probe_table`, `output_directory`, `skip_barcode_extraction` and scale the computational specifications  (`disk_space`, `memory`, `num_cpu`) to the size of your data.
 
 <img width="1133" height="380" alt="image" src="https://github.com/user-attachments/assets/8ab074b3-13c2-46a1-bf42-eed3ab35b896" />
 
@@ -32,8 +32,8 @@ Within the Terra workflow interface fill out the required fields (`copy_intermed
 Example csv provided here:
 <img width="973" height="87" alt="image" src="https://github.com/user-attachments/assets/958b4477-b502-43ca-8ccf-287ec60b6ac0" />
 
-The `copy_intermediates` flag is helpful if you want to export the intermediary files generated within the scripts (barcode/umi/probe extracted fastqs), exported to the output_directory.
+The `save_barcodes_table` parameter is DEFAULTED TO TRUE to export the intermediary files generated within the scripts (barcode/umi/probe extracted fastqs), exported to the output_directory. These files are required for partial runs if downstream fails.
 
-The `run_filter_group_only` flag is useful for skipping the lengthy extraction step, granted you have copied the intermediate outputs, it will look for files in the export location specified above in the variable.
+The `skip_barcode_extraction` parameter is useful for skipping the lengthy extraction step, granted you have copied the intermediate outputs, it will look for files in the export location specified above in the variable.
 
 This will generate a sample labeled `count_matrix_f100.h5ad` file that is the count of all probes in HyPR-seq dataset per cell barcode. 
