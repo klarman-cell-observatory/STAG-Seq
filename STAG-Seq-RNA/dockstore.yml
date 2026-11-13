@@ -1,8 +1,8 @@
 version: 1.2
 workflows:
-  - name: trekker-terra
+  - name: STAG_Seq_RNA
     subclass: WDL
-    primaryDescriptorPath: /trekker.wdl
+    primaryDescriptorPath: /stag_seq_rna.wdl
     authors:
       - name: Eric Chen
         email: chene@broadinstitute.org
