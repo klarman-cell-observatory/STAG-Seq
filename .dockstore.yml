@@ -2,7 +2,7 @@ version: 1.2
 workflows:
   - name: STAG_Seq_RNA
     subclass: WDL
-    primaryDescriptorPath: /stag_seq_rna.wdl
+    primaryDescriptorPath: /STAG-Seq-RNA/stag_seq_rna.wdl
     authors:
       - name: Eric Chen
         email: chene@broadinstitute.org
